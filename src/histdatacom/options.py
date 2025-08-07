@@ -23,6 +23,7 @@ class Options:
         self.download_data_archives: bool = False
         self.extract_csvs: bool = False
         self.import_to_influxdb: bool = False
+        self.import_to_timescaledb: bool = False
         self.pairs: set = Pairs.list_keys()
         self.formats: set = Format.list_values()
         self.timeframes: set = Timeframe.list_keys()
@@ -34,4 +35,5 @@ class Options:
         self.cpu_utilization: str = "medium"
         self.batch_size: str = "5000"
         self.delete_after_influx: bool = False
+        self.delete_after_timescale: bool = False
         self.zip_persist: bool = False

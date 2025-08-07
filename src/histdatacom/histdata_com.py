@@ -78,6 +78,14 @@ class _HistDataCom:  # noqa:R701
             config.ARGS["INFLUX_URL"] = influx_yaml["influxdb"]["url"]
             config.ARGS["INFLUX_TOKEN"] = influx_yaml["influxdb"]["token"]
 
+        if config.ARGS["import_to_timescaledb"]:
+            import os
+            database_url = os.getenv("DATABASE_URL")
+            if not database_url:
+                print("ERROR: DATABASE_URL environment variable is required for TimescaleDB import")  # noqa:T201
+                raise SystemExit(1)
+            config.ARGS["DATABASE_URL"] = database_url
+
         self.repo = Repo()
         self.scraper = Scraper()
         self.csvs = Csv()
@@ -94,6 +102,13 @@ class _HistDataCom:  # noqa:R701
             from histdatacom.influx import Influx
 
             self.influx = Influx()
+
+        if config.ARGS["import_to_timescaledb"]:
+            config.ARGS["api_return_type"] = "datatable"
+            check_installed_module(config.ARGS["api_return_type"])
+            from histdatacom.timescale import TimescaleDB
+
+            self.timescaledb = TimescaleDB()
 
         if (  # noqa:BLK100
             config.ARGS["available_remote_data"]  # noqa:BLK100
@@ -151,11 +166,18 @@ class _HistDataCom:  # noqa:R701
                 return self.api.merge_jays()
 
         if config.ARGS["extract_csvs"]:
+            print("[Main] Starting CSV extraction...")  # noqa:T201
             self.csvs.extract_csvs()
+            print("[Main] CSV extraction completed")  # noqa:T201
         del self.csvs  # noqa:WPS100
 
         if config.ARGS["import_to_influxdb"]:
             self.influx.import_data()
+
+        if config.ARGS["import_to_timescaledb"]:
+            print("[Main] Starting TimescaleDB import...")  # noqa:T201
+            self.timescaledb.import_data()
+            print("[Main] TimescaleDB import completed")  # noqa:T201
 
         return None
 

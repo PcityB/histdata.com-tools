@@ -57,7 +57,7 @@ setup(
     description=(
         "A Multi-threaded/Multi-Process command-line utility and "
         "python package that downloads currency exchange rates from "
-        "Histdata.com. Imports to InfluxDB. Can be used in Jupyter "
+        "Histdata.com. Imports to InfluxDB and TimescaleDB. Can be used in Jupyter "
         "Notebooks."
     ),
     long_description=long_description,
@@ -78,6 +78,7 @@ setup(
     },
     install_requires=[
         "influxdb_client",
+        "psycopg2-binary",
         "rich",
         "requests",
         "beautifulsoup4",
@@ -173,6 +174,7 @@ setup(
         "HistData.com",
         "scraper",
         "influxdb",
+        "timescaledb",
         "currency exchange",
         "forex",
         "fx",

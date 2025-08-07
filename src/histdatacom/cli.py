@@ -138,6 +138,7 @@ class ArgParser(argparse.ArgumentParser):  # noqa:H601
             self.arg_namespace.download_data_archives = False
             self.arg_namespace.extract_csvs = False
             self.arg_namespace.import_to_influxdb = False
+            self.arg_namespace.import_to_timescaledb = False
             self.arg_namespace.formats = {"ascii"}
             self.arg_namespace.timeframes = {"tick-data-quotes"}
 
@@ -178,6 +179,10 @@ class ArgParser(argparse.ArgumentParser):  # noqa:H601
             args.append("-I")
         if self.arg_namespace.delete_after_influx:
             args.append("-d")
+        if self.arg_namespace.import_to_timescaledb:
+            args.append("-T")
+        if self.arg_namespace.delete_after_timescale:
+            args.append("--delete_after_timescale")
         return args
 
     def _false_from_api_if_behavior_flag(self) -> None:
@@ -187,6 +192,7 @@ class ArgParser(argparse.ArgumentParser):  # noqa:H601
             or self.arg_namespace.download_data_archives
             or self.arg_namespace.extract_csvs
             or self.arg_namespace.import_to_influxdb
+            or self.arg_namespace.import_to_timescaledb
         ):
             self.arg_namespace.from_api = False
 
@@ -213,6 +219,29 @@ class ArgParser(argparse.ArgumentParser):  # noqa:H601
             print(err)  # noqa:T201
             raise SystemExit from err
 
+    def _check_for_ascii_if_timescale(self) -> None:
+        """Verify ascii csv_format type for TimescaleDB import.
+
+        # noqa: DAR402
+
+        Raises:
+            ValueError: if TimescaleDB, must use ascii
+            SystemExit: exit on error
+        """
+        try:
+            if self.arg_namespace.import_to_timescaledb:
+                err_text_timescale_must_be_ascii = f"""
+            ERROR on -f {self.arg_namespace.formats}           ERROR
+                * format must be ASCII when importing to TimescaleDB. eg. -f ascii
+
+            """
+                for csv_format in self.arg_namespace.formats:
+                    if str.lower(csv_format) != "ascii":
+                        raise ValueError(err_text_timescale_must_be_ascii)
+        except ValueError as err:
+            print(err)  # noqa:T201
+            raise SystemExit from err
+
     def _check_for_ascii_if_api(self) -> None:  # noqa:CCR001
         """Verify ascii csv_format type for api use.
 
@@ -228,6 +257,7 @@ class ArgParser(argparse.ArgumentParser):  # noqa:H601
                 or self.arg_namespace.download_data_archives
                 or self.arg_namespace.extract_csvs
                 or self.arg_namespace.import_to_influxdb
+                or self.arg_namespace.import_to_timescaledb
             ):
                 err_text_api_must_be_ascii = f"""
                 ERROR on -f {self.arg_namespace.formats}           ERROR
@@ -282,7 +312,7 @@ class ArgParser(argparse.ArgumentParser):  # noqa:H601
         self._validate_prerequisites()
 
     def _validate_prerequisites(self) -> None:
-        """Set prereqs for behavior flags -V -D -X -I."""
+        """Set prereqs for behavior flags -V -D -X -I -T."""
         if self.arg_namespace.validate_urls:
             return
 
@@ -297,10 +327,16 @@ class ArgParser(argparse.ArgumentParser):  # noqa:H601
             self.arg_namespace.validate_urls = True
             self.arg_namespace.download_data_archives = True
 
+        if self.arg_namespace.import_to_timescaledb:
+            self.arg_namespace.validate_urls = True
+            self.arg_namespace.download_data_archives = True
+            self.arg_namespace.extract_csvs = True
+
         if (
             not self.arg_namespace.download_data_archives
             and not self.arg_namespace.extract_csvs
             and not self.arg_namespace.import_to_influxdb
+            and not self.arg_namespace.import_to_timescaledb
         ):
             self.arg_namespace.validate_urls = True
             self.arg_namespace.download_data_archives = True
@@ -660,6 +696,7 @@ class ArgParser(argparse.ArgumentParser):  # noqa:H601
         mode_args = self.add_argument_group("Mode")
         config_args = self.add_argument_group("Config")
         influx_args = self.add_argument_group("Influxdb")
+        timescale_args = self.add_argument_group("TimescaleDB")
         system_args = self.add_argument_group("System")
         info_args = self.add_argument_group("Info")
 
@@ -786,6 +823,20 @@ class ArgParser(argparse.ArgumentParser):  # noqa:H601
             type=int,
             help="(integer) influxdb write_api batch size. defaults to 5000",
         )
+        timescale_args.add_argument(
+            "-T",
+            "--import_to_timescaledb",
+            action="store_true",
+            help=(
+                "import data to TimescaleDB instance."  # noqa:BLK100
+                " Use DATABASE_URL environment variable to configure."
+            ),
+        )
+        timescale_args.add_argument(
+            "--delete_after_timescale",
+            action="store_true",
+            help="delete data files after upload to TimescaleDB",
+        )
         system_args.add_argument(
             "-c",
             "--cpu_utilization",
@@ -824,6 +875,7 @@ class ArgParser(argparse.ArgumentParser):  # noqa:H601
 
         self._check_datetime_input()
         self._check_for_ascii_if_influx()
+        self._check_for_ascii_if_timescale()
         self._check_for_ascii_if_api()
         get_pool_cpu_count(self.arg_namespace.cpu_utilization)
 

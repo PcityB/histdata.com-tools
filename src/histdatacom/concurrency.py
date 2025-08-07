@@ -157,6 +157,7 @@ class ProcessPool:
         records_current: Optional[Records],
         records_next: Optional[Records],
         influx_chunks_queue: Optional[Queue] = None,
+        timescale_chunks_queue: Optional[Queue] = None,
         writer: InfluxDBWriter | None = None,
     ) -> None:
         """Execute Process pool with rich.Progress bar.
@@ -166,6 +167,8 @@ class ProcessPool:
             records_next (Optional[Records]): _description_
             influx_chunks_queue (Optional[Queue], optional):
                                     used for RxPY queue. Defaults to None.
+            timescale_chunks_queue (Optional[Queue], optional):
+                                    used for TimescaleDB queue. Defaults to None.
             writer (InfluxDBWriter | None): influxdb writer process.
         """
         records_count = records_current.qsize()  # type: ignore
@@ -194,6 +197,7 @@ class ProcessPool:
                         records_next,
                         self.args.copy(),
                         influx_chunks_queue,
+                        timescale_chunks_queue,
                     ),
                 ) as executor:
                     futures = []
@@ -204,7 +208,7 @@ class ProcessPool:
                         if record is None:
                             return
 
-                        if influx_chunks_queue is None:
+                        if influx_chunks_queue is None and timescale_chunks_queue is None:
                             future = executor.submit(
                                 self.exec_func,
                                 record,
@@ -212,7 +216,7 @@ class ProcessPool:
                                 records_current,
                                 records_next,
                             )
-                        else:
+                        elif influx_chunks_queue is not None:
                             future = executor.submit(
                                 self.exec_func,
                                 record,
@@ -220,6 +224,15 @@ class ProcessPool:
                                 records_current,
                                 records_next,
                                 influx_chunks_queue,
+                            )
+                        elif timescale_chunks_queue is not None:
+                            future = executor.submit(
+                                self.exec_func,
+                                record,
+                                self.args,
+                                records_current,
+                                records_next,
+                                timescale_chunks_queue,
                             )
 
                         progress.advance(task_id, 0.25)
@@ -319,6 +332,7 @@ class QueueManager:
         config.CURRENT_QUEUE = config.QUEUE_MANAGER.Records()  # type: ignore
         config.NEXT_QUEUE = config.QUEUE_MANAGER.Records()  # type: ignore
         config.INFLUX_CHUNKS_QUEUE = config.QUEUE_MANAGER.Queue()  # type: ignore
+        config.TIMESCALE_CHUNKS_QUEUE = config.QUEUE_MANAGER.Queue()  # type: ignore
 
         histdatacom_runner = runner_(self.options)
 
@@ -334,6 +348,7 @@ def _init_counters(
     records_next_: Records,
     args_: dict,
     influx_chunks_queue_: Queue | None = None,
+    timescale_chunks_queue_: Queue | None = None,
 ) -> None:
     """Initialize pool with access to these global variables.
 
@@ -342,6 +357,7 @@ def _init_counters(
         records_next_ (Records): config.NEXT_QUEUE
         args_ (dict): config.ARGS
         influx_chunks_queue_ (Queue | None, optional): config.INFLUX_CHUNKS_QUEUE
+        timescale_chunks_queue_ (Queue | None, optional): config.TIMESCALE_CHUNKS_QUEUE
     """
     # pylint: disable=global-variable-undefined
     args = args_  # noqa:F841
@@ -349,6 +365,10 @@ def _init_counters(
     if influx_chunks_queue_ is not None:
         global INFLUX_CHUNKS_QUEUE  # noqa:WPS100
         INFLUX_CHUNKS_QUEUE = influx_chunks_queue_  # type: ignore
+
+    if timescale_chunks_queue_ is not None:
+        global TIMESCALE_CHUNKS_QUEUE  # noqa:WPS100
+        TIMESCALE_CHUNKS_QUEUE = timescale_chunks_queue_  # type: ignore
 
 
 def _complete_future(
